@@ -51,6 +51,7 @@
   .th .inc.on{background:var(--neon);border-color:var(--neon);color:#03121B}
   .th.excluded{opacity:.4}
   .th.excluded img{filter:grayscale(.7)}
+  .th .own{position:absolute;bottom:3px;inset-inline-end:3px;background:rgba(0,0,0,.7);color:#cfe;font-size:9px;border-radius:5px;padding:0 5px;max-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;z-index:1}
   .film .fhead{font-size:11px;color:var(--muted);text-align:center;position:sticky;top:-10px;background:var(--panel);padding:2px 0 6px}
   .th{position:relative;border:2px solid var(--line);border-radius:9px;overflow:hidden;background:#000;cursor:pointer;transition:.1s;flex-shrink:0}
   .th:hover{border-color:var(--neon)}
@@ -163,17 +164,22 @@
 
 <script type="module">
 import { FrameExtractor } from './studio/frames.js';
-import { StudioStore } from './studio/store.js';
+import { CloudStore } from './sync/cloud-store.js';
 import { Annotator } from './studio/annotate.js';
 import { buildYoloZip, downloadBlob } from './studio/export.js';
 import { CameraCapture } from './studio/capture.js';
 
 const ex = new FrameExtractor({ maxW: 640 });
-const store = new StudioStore();
+const store = new CloudStore();
 const $ = s => document.querySelector(s);
 let annotator = null;
 
-await store.load();
+// ---- who are you? (no passwords — just a name tag on your uploads) ----
+let me = localStorage.getItem('thinkcv_user');
+if (!me) { me = (prompt('מה השם שלך? (יופיע על התמונות שתצלם)') || 'אנונימי').trim() || 'אנונימי'; localStorage.setItem('thinkcv_user', me); }
+store.owner = me;
+
+await store.load(); // load everyone's shared frames + categories
 store.onChange(refresh);
 
 // ---- annotator ----
@@ -243,7 +249,9 @@ $('#uploadBtn').onclick = () => scrim.classList.add('open');
 $('#closeDrawer').onclick = () => scrim.classList.remove('open');
 scrim.onclick = e => { if (e.target === scrim) scrim.classList.remove('open'); };
 $('#want').oninput = e => $('#wantLbl').textContent = e.target.value;
-$('#clearBtn').onclick = async () => { if (confirm('למחוק את כל הפריימים והתיוגים?')) { await store.clear(); location.reload(); } };
+$('#clearBtn').textContent = '🔄 רענן מהמאגר';
+$('#clearBtn').classList.remove('danger');
+$('#clearBtn').onclick = async () => { $('#clearBtn').textContent = 'טוען…'; await store.load(); refresh(); $('#clearBtn').textContent = '🔄 רענן מהמאגר'; };
 
 const drop = $('#drop'), fileInput = $('#file');
 drop.onclick = () => fileInput.click();
@@ -302,17 +310,20 @@ function refresh() {
 
   const cur = window._filter || 'all';
   $('#filter').innerHTML =
-    `<option value="all">הכל</option><option value="untagged">לא מתויג</option><option value="tagged">מתויג</option><option value="bg">רקע</option><option value="excluded">מוחרג מייצוא</option>`
-    + cats.map((c, i) => `<option value="cat:${i}">רק ${c.name}</option>`).join('');
+    `<option value="all">הכל</option><option value="mine">רק שלי (${me})</option><option value="untagged">לא מתויג</option><option value="tagged">מתויג</option><option value="bg">רקע</option><option value="excluded">מוחרג מייצוא</option>`
+    + cats.map((c, i) => `<option value="cat:${i}">רק ${c.name}</option>`).join('')
+    + store.owners().filter(o => o !== me).map(o => `<option value="owner:${o}">מאת ${o}</option>`).join('');
   $('#filter').value = cur;
   $('#filter').onchange = e => { window._filter = e.target.value; refresh(); };
 
   const match = f => {
+    if (cur === 'mine') return f.owner === me;
     if (cur === 'untagged') return !f.done;
     if (cur === 'tagged') return f.done && !f.background;
     if (cur === 'bg') return f.background;
     if (cur === 'excluded') return f.included === false;
     if (cur.startsWith('cat:')) { const n = +cur.slice(4); return f.boxes.some(b => b.cls === n); }
+    if (cur.startsWith('owner:')) return f.owner === cur.slice(6);
     return true;
   };
   const shown = store.frames.filter(match);
@@ -325,13 +336,15 @@ function refresh() {
     const d = document.createElement('div');
     d.className = 'th' + (f.done ? ' done' : '') + (f.included === false ? ' excluded' : '') + (annotator && annotator.frameId === f.id ? ' active' : '');
     d.innerHTML = `<span class="idx">${gi + 1}</span>
-      <button class="del-btn" title="מחק תמונה">✕</button>
+      ${f.owner === me ? '<button class="del-btn" title="מחק תמונה">✕</button>' : ''}
       <img src="${f.url}" alt="">
+      <span class="own" title="צילם/ה">${f.owner}${f._pending ? ' ⏳' : ''}</span>
       <span class="inc ${f.included !== false ? 'on' : ''}" title="כלול בייצוא">${f.included !== false ? '✓' : '○'}</span>
       ${f.boxes.length ? `<span class="bc">${f.boxes.length}</span>` : (f.background ? '<span class="bc">רקע</span>' : '')}`;
     d.querySelector('img').onclick = () => openFrame(f.id);
     d.querySelector('.idx').onclick = () => openFrame(f.id);
-    d.querySelector('.del-btn').onclick = (e) => { e.stopPropagation(); if (confirm('למחוק את התמונה?')) { const wasOpen = annotator && annotator.frameId === f.id; store.removeFrame(f.id); if (wasOpen && store.frames[0]) openFrame(store.frames[0].id); } };
+    const delB = d.querySelector('.del-btn');
+    if (delB) delB.onclick = (e) => { e.stopPropagation(); if (confirm('למחוק את התמונה מהמאגר המשותף?')) { const wasOpen = annotator && annotator.frameId === f.id; store.removeFrame(f.id); if (wasOpen && store.frames[0]) openFrame(store.frames[0].id); } };
     d.querySelector('.inc').onclick = (e) => { e.stopPropagation(); store.toggleInclude(f.id); };
     film.appendChild(d);
   });
