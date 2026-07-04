@@ -10,7 +10,7 @@ const JSZIP_CDN = 'https://esm.sh/jszip@3.10.1';
 export async function buildYoloZip(store, { onProgress } = {}) {
   const names = store.categories.map(c => c.name);
   if (!names.length) throw new Error('אין קטגוריות — הוסיפו לפחות אחת לפני ייצוא');
-  const tagged = store.frames.filter(f => f.done); // has boxes OR marked background
+  const tagged = store.frames.filter(f => f.done && f.included !== false); // done + not excluded
   if (!tagged.length) throw new Error('אין פריימים מתויגים לייצוא');
 
   const { default: JSZip } = await import(/* @vite-ignore */ JSZIP_CDN);

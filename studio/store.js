@@ -39,11 +39,13 @@ export class StudioStore {
 
   // ---- frames ----
   addFrames(list) {
-    for (const f of list) this.frames.push({ id: 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), url: f.url, score: f.score ?? 1, boxes: [], done: false });
+    for (const f of list) this.frames.push({ id: 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), url: f.url, score: f.score ?? 1, boxes: [], done: false, included: true });
     this._emit();
   }
   removeFrame(id) { this.frames = this.frames.filter(f => f.id !== id); this._emit(); }
   markBackground(id) { const f = this.frames.find(x => x.id === id); if (f) { f.boxes = []; f.done = true; f.background = true; } this._emit(); }
+  clearBoxes(id) { const f = this.frames.find(x => x.id === id); if (f) { f.boxes = []; f.done = false; f.background = false; } this._emit(); }
+  toggleInclude(id) { const f = this.frames.find(x => x.id === id); if (f) { f.included = f.included === false ? true : false; } this._emit(); }
 
   // ---- boxes ----
   addBox(frameId, box) {
