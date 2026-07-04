@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>thinkCV Platform · שלב 1 — הגזע</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<!-- TF.js + generic COCO detector. These run in YOUR browser (not the sandbox). -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+<style>
+  :root{
+    --bg:#070B12; --panel:#0D1420; --panel-2:#141E2E; --line:#1E2B40;
+    --ink:#E9F1FC; --muted:#8CA1BC; --neon:#22D3EE; --neon-2:#0EA5E9;
+    --vio:#A78BFA; --mag:#F472B6; --ok:#34D399; --warn:#FBBF24; --danger:#F87171; --r:18px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Rubik",-apple-system,"Segoe UI",Arial,sans-serif;line-height:1.55;
+    background-image:radial-gradient(circle at 15% 0%,rgba(34,211,238,.08),transparent 42%),
+      radial-gradient(circle at 85% 12%,rgba(167,139,250,.08),transparent 46%),
+      radial-gradient(rgba(140,161,188,.05) 1px,transparent 1px);background-size:auto,auto,28px 28px}
+  .wrap{max-width:1180px;margin:0 auto;padding:24px 18px 70px}
+  .logo{font-family:"Space Grotesk","Rubik";font-weight:700;font-size:30px;letter-spacing:-1px;
+    background:linear-gradient(90deg,var(--neon),var(--vio),var(--mag));
+    -webkit-background-clip:text;background-clip:text;color:transparent;display:inline-block}
+  .logo .zap{-webkit-text-fill-color:initial;color:var(--warn)}
+  .badge{font-family:"Space Grotesk",monospace;font-size:11px;background:linear-gradient(135deg,var(--neon),var(--vio));
+    color:#04121a;border-radius:8px;padding:3px 10px;font-weight:700;vertical-align:middle;margin-inline-start:8px}
+  .sub{color:var(--muted);font-size:14px;margin-top:3px;max-width:720px}
+
+  .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:18px 0;padding:12px 16px;
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--r)}
+  button{font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;border-radius:11px;
+    padding:10px 18px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);transition:.15s}
+  button:hover:not(:disabled){border-color:var(--neon);transform:translateY(-1px)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.primary{background:linear-gradient(135deg,var(--neon),var(--neon-2));color:#03121B;border-color:transparent;font-weight:700}
+  .pill{font-size:12px;padding:4px 11px;border-radius:999px;background:var(--panel-2);border:1px solid var(--line);color:var(--muted)}
+  .pill .d{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--danger);margin-inline-end:5px}
+  .pill.on .d{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+
+  /* ---- dashboard ---- */
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px;
+    box-shadow:0 16px 44px -26px rgba(0,0,0,.85)}
+  .dash-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .dash-title{font-size:18px;font-weight:800}
+  .live{margin-inline-start:auto;font-size:12px;color:var(--ok);display:flex;align-items:center;gap:6px}
+  .live i{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok);animation:pulse 1.4s infinite}
+  @keyframes pulse{50%{opacity:.35}}
+  .dash-grid{display:grid;grid-template-columns:1.6fr 1fr;gap:16px;align-items:start}
+  @media(max-width:900px){.dash-grid{grid-template-columns:1fr}}
+  .dash-stage{position:relative;background:#000;border:1px solid var(--line);border-radius:14px;overflow:hidden;min-height:280px}
+  .dash-video{display:block;width:100%}
+  .dash-overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+  .dash-side{display:flex;flex-direction:column;gap:14px}
+  .gauge{text-align:center;padding:4px 0 2px}
+  .gauge .num{font-family:"Space Grotesk";font-size:42px;font-weight:700;line-height:1;
+    background:linear-gradient(90deg,var(--neon),var(--vio),var(--mag));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .gauge .lbl{font-size:12px;color:var(--muted);margin-top:2px}
+  .track{height:8px;border-radius:99px;background:var(--line);margin:11px 0 2px;overflow:hidden}
+  .track i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--ok),var(--warn),var(--danger));transition:width .25s}
+  .mini{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:12px}
+  .mini .b{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:7px 2px;text-align:center}
+  .mini .b .v{font-family:"Space Grotesk";font-weight:700;font-size:17px}
+  .mini .b .l{font-size:10px;color:var(--muted)}
+  .sec{font-size:13px;font-weight:700;margin:15px 0 9px}
+  .abar{margin-bottom:9px}
+  .abar .top{display:flex;align-items:center;gap:7px;font-size:12.5px;margin-bottom:3px}
+  .abar .top .sw{width:10px;height:10px;border-radius:3px}
+  .abar .top .c{margin-inline-start:auto;font-family:"Space Grotesk";font-weight:700;color:var(--muted)}
+  .abar .b{height:6px;border-radius:99px;background:var(--line);overflow:hidden}
+  .abar .b i{display:block;height:100%;border-radius:99px;transition:width .25s}
+  .log{max-height:280px;overflow-y:auto}
+  .logrow{display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--line);font-size:12.5px}
+  .logrow .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  .logrow .t{font-family:"Space Grotesk";color:var(--muted);font-size:11px}
+  .empty{color:var(--muted);font-size:12.5px;text-align:center;padding:14px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo">thinkCV <span class="zap">⚡</span> Platform<span class="badge">שלב 1 · הגזע</span></div>
+  <p class="sub">מצלמה חיה → מנוע זיהוי → מנוע חוקים → דשבורד. זה השלד שהכל נתלה עליו. (מודל COCO גנרי בינתיים — מחליפים למודל שלך כשהשלד עומד.)</p>
+
+  <div class="bar">
+    <button class="primary" id="startBtn">▶ הפעל מצלמה</button>
+    <button id="stopBtn" disabled>■ עצור</button>
+    <span class="pill" id="modelPill"><span class="d"></span>טוען מודל…</span>
+    <span class="pill" id="camPill"><span class="d"></span>מצלמה כבויה</span>
+    <span style="display:flex;align-items:center;gap:8px;margin-inline-start:auto">
+      <label style="font-size:13px;color:var(--muted)">רגישות (סף ביטחון)</label>
+      <input type="range" id="thr" min="0.05" max="0.9" step="0.05" value="0.25" style="accent-color:var(--neon);width:150px">
+      <b id="thrLbl" style="font-family:'Space Grotesk';color:var(--neon);min-width:38px;text-align:center">0.25</b>
+    </span>
+  </div>
+
+  <div class="bar" style="flex-direction:column;align-items:stretch;gap:10px">
+    <div style="font-size:13px;font-weight:700">מקור המודל</div>
+    <div class="row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <label style="display:flex;gap:5px;align-items:center;font-size:13px;color:var(--muted)">
+        <input type="radio" name="eng" value="coco" checked> COCO (גנרי, לפיתוח)</label>
+      <label style="display:flex;gap:5px;align-items:center;font-size:13px;color:var(--muted)">
+        <input type="radio" name="eng" value="yolo"> מודל שאימנתי (Colab .zip)</label>
+      <label style="display:flex;gap:5px;align-items:center;font-size:13px;color:var(--muted)">
+        <input type="radio" name="eng" value="onnx"> מודל ONNX (best.onnx)</label>
+      <label style="display:flex;gap:5px;align-items:center;font-size:13px;color:var(--muted)">
+        <input type="radio" name="eng" value="rf"> מודל Roboflow שלי</label>
+    </div>
+    <div id="onnxFields" style="display:none;gap:8px;flex-wrap:wrap;align-items:center" class="row">
+      <button id="onnxPick">📦 בחר best.onnx</button>
+      <input type="file" id="onnxFile" accept=".onnx" style="display:none">
+      <span id="onnxName" class="pill">לא נבחר קובץ</span>
+      <input type="text" id="onnxNames" placeholder="שמות קטגוריות: בור, פסולת" style="flex:1;min-width:200px">
+      <button class="primary" id="onnxLoad">טען מודל</button>
+    </div>
+    <div id="yoloFields" style="display:none;gap:8px;flex-wrap:wrap;align-items:center" class="row">
+      <button id="yoloPick">📦 בחר yolo_tfjs_model.zip</button>
+      <input type="file" id="yoloFile" accept=".zip" style="display:none">
+      <span id="yoloName" class="pill">לא נבחר קובץ</span>
+      <input type="text" id="yoloNames" placeholder="שמות קטגוריות (אופציונלי): בור, פסולת" style="flex:1;min-width:200px">
+      <button class="primary" id="yoloLoad">טען מודל</button>
+    </div>
+    <div id="rfFields" style="display:none;gap:8px;flex-wrap:wrap" class="row">
+      <input type="text" id="rfKey" placeholder="publishable key (rf_…)" style="flex:1;min-width:180px;direction:ltr;text-align:left">
+      <input type="text" id="rfModel" placeholder="שם מודל (slug)" style="min-width:150px;direction:ltr;text-align:left">
+      <input type="number" id="rfVer" placeholder="גרסה" value="1" style="width:80px">
+      <button class="primary" id="rfLoad">טען מודל</button>
+    </div>
+    <div style="font-size:11.5px;color:var(--muted)">שלושת הערכים נמצאים ב-Roboflow: <b style="color:var(--ink)">Deploy</b> → דוגמת קוד ל-inferencejs (key, slug, version). המודל רץ מקומית בדפדפן.</div>
+  </div>
+
+  <div id="dash"></div>
+</div>
+
+<script type="module">
+import { EventBus, EV } from './engine/events.js';
+import { CocoEngine } from './engine/engine.js';
+import { RoboflowEngine } from './engine/roboflow.js';
+import { YoloEngine } from './engine/yolo.js';
+import { OnnxEngine } from './engine/onnx.js';
+import { RuleEngine } from './rules/rule-engine.js';
+import { CameraSource } from './sources/camera.js';
+import { Dashboard } from './dashboard/dashboard.js';
+
+// ---- composition root: this file wires the trunk together ----
+const bus = new EventBus();
+let engine = new CocoEngine(bus, { minScore: 0.4 }); // swappable — COCO by default
+const camera = new CameraSource(bus, { fps: 8, facingMode: 'environment' });
+const dash = new Dashboard(bus, '#dash');
+
+// Demo rules over COCO classes so the log lights up immediately.
+// (When you swap to the urban model, you'll define rules over your own classes.)
+const demoRules = [
+  { name:'זוהה אדם', match:'all', level:'med', msg:'אדם בפריים (ביטחון ≥60%)',
+    conds:[{ subj:-1, metric:'confidence', op:'>=', val:0.6 }] },
+];
+// rules live on the STREAM (not in the dashboard) — same events the ESP32 will use later
+const ruleEngine = new RuleEngine(bus, { rules: demoRules, weightOf: () => 1 });
+
+// status pills
+const modelPill = document.getElementById('modelPill');
+const camPill = document.getElementById('camPill');
+bus.on(EV.MODEL_READY, () => { modelPill.classList.add('on'); modelPill.innerHTML = '<span class="d"></span>מודל מוכן'; startBtn.disabled = false; syncThr(); });
+
+// live sensitivity slider — writes straight to the active engine (read every frame)
+const thr = document.getElementById('thr'), thrLbl = document.getElementById('thrLbl');
+function syncThr() { if (engine && typeof engine.minScore === 'number') { thr.value = engine.minScore; thrLbl.textContent = (+engine.minScore).toFixed(2); } }
+thr.oninput = () => { const v = parseFloat(thr.value); thrLbl.textContent = v.toFixed(2); if (engine) engine.minScore = v; };
+bus.on(EV.SOURCE, ({ state }) => {
+  if (state === 'started') { camPill.classList.add('on'); camPill.innerHTML = '<span class="d"></span>מצלמה פעילה'; }
+  if (state === 'stopped' || state === 'error') { camPill.classList.remove('on'); camPill.innerHTML = '<span class="d"></span>מצלמה כבויה'; }
+});
+
+// the pipeline: each frame → detect → emit onto the bus → dashboard renders
+async function onFrame(videoEl) {
+  const detections = await engine.detect(videoEl);
+  bus.emit(EV.FRAME, { ts: Date.now(), detections, source: 'camera' });
+}
+
+const startBtn = document.getElementById('startBtn');
+const stopBtn = document.getElementById('stopBtn');
+startBtn.disabled = true;
+
+startBtn.onclick = async () => {
+  startBtn.disabled = true;
+  try {
+    await camera.start(onFrame);
+    dash.attachVideo(camera.el);
+    stopBtn.disabled = false;
+  } catch (e) { startBtn.disabled = false; }
+};
+stopBtn.onclick = () => { camera.stop(); stopBtn.disabled = true; startBtn.disabled = false; };
+
+// ---- engine switching (COCO ↔ trained YOLO ↔ Roboflow) ----
+const rfFields = document.getElementById('rfFields');
+const yoloFields = document.getElementById('yoloFields');
+const onnxFields = document.getElementById('onnxFields');
+document.querySelectorAll('input[name=eng]').forEach(r => r.onchange = () => {
+  const v = document.querySelector('input[name=eng]:checked').value;
+  rfFields.style.display = v === 'rf' ? 'flex' : 'none';
+  yoloFields.style.display = v === 'yolo' ? 'flex' : 'none';
+  onnxFields.style.display = v === 'onnx' ? 'flex' : 'none';
+});
+
+// ONNX model (best.onnx — runs directly via onnxruntime-web)
+let onnxBlob = null;
+document.getElementById('onnxPick').onclick = () => document.getElementById('onnxFile').click();
+document.getElementById('onnxFile').onchange = e => {
+  onnxBlob = e.target.files[0] || null;
+  document.getElementById('onnxName').textContent = onnxBlob ? onnxBlob.name : 'לא נבחר קובץ';
+};
+document.getElementById('onnxLoad').onclick = async () => {
+  if (!onnxBlob) { alert('בחרו קודם best.onnx'); return; }
+  const names = document.getElementById('onnxNames').value.split(',').map(s => s.trim()).filter(Boolean);
+  modelPill.classList.remove('on'); modelPill.innerHTML = '<span class="d"></span>טוען מודל ONNX…';
+  startBtn.disabled = true;
+  const o = new OnnxEngine(bus, { onnxFile: onnxBlob, names, minScore: 0.25 });
+  try { await o.load(); engine = o; }
+  catch (e) { modelPill.innerHTML = '<span class="d"></span>שגיאת מודל ONNX'; bus.emit(EV.LOG, { level: 'high', msg: String(e.message || e), ts: Date.now() }); console.error(e); }
+};
+
+// trained model (Colab .zip)
+let yoloBlob = null;
+document.getElementById('yoloPick').onclick = () => document.getElementById('yoloFile').click();
+document.getElementById('yoloFile').onchange = e => {
+  yoloBlob = e.target.files[0] || null;
+  document.getElementById('yoloName').textContent = yoloBlob ? yoloBlob.name : 'לא נבחר קובץ';
+};
+document.getElementById('yoloLoad').onclick = async () => {
+  if (!yoloBlob) { alert('בחרו קודם yolo_tfjs_model.zip'); return; }
+  const names = document.getElementById('yoloNames').value.split(',').map(s => s.trim()).filter(Boolean);
+  modelPill.classList.remove('on'); modelPill.innerHTML = '<span class="d"></span>טוען מודל…';
+  startBtn.disabled = true;
+  const y = new YoloEngine(bus, { zipFile: yoloBlob, names, minScore: 0.25 });
+  try { await y.load(); engine = y; }
+  catch (e) { modelPill.innerHTML = '<span class="d"></span>שגיאת מודל'; bus.emit(EV.LOG, { level: 'high', msg: String(e.message || e), ts: Date.now() }); console.error(e); }
+};
+
+document.getElementById('rfLoad').onclick = async () => {
+  const publishableKey = document.getElementById('rfKey').value.trim();
+  const model = document.getElementById('rfModel').value.trim();
+  const version = document.getElementById('rfVer').value.trim();
+  if (!publishableKey || !model || !version) { alert('צריך key, שם מודל, וגרסה'); return; }
+  modelPill.classList.remove('on'); modelPill.innerHTML = '<span class="d"></span>טוען מודל Roboflow…';
+  startBtn.disabled = true;
+  const rf = new RoboflowEngine(bus, { publishableKey, model, version, minScore: 0.4 });
+  try {
+    await rf.load();
+    engine = rf; // hot-swap — the pipeline uses whatever `engine` points to
+  } catch (e) {
+    modelPill.innerHTML = '<span class="d"></span>שגיאת מודל Roboflow';
+    bus.emit(EV.LOG, { level: 'high', msg: String(e.message || e), ts: Date.now() });
+    console.error(e);
+  }
+};
+
+// load the generic model on page open (default engine)
+engine.load().catch(e => { modelPill.innerHTML = '<span class="d"></span>שגיאת מודל'; console.error(e); });
+</script>
+</body>
+</html>
