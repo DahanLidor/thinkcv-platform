@@ -99,12 +99,13 @@
     .cats{width:100%;justify-content:center}
     button{padding:9px 12px}
     .work{grid-template-columns:1fr;grid-template-rows:1fr auto}
-    .filmwrap{border-inline-start:none;border-top:1px solid var(--line);max-height:150px}
+    .filmwrap{border-inline-start:none;border-top:1px solid var(--line);flex:0 0 auto}
+    .filmwrap .film{flex:0 0 auto}
     .filmbar{padding:6px 8px}
-    .film{flex-direction:row;overflow-x:auto;overflow-y:hidden;padding:8px}
+    .film{flex-direction:row;flex-wrap:nowrap;height:120px;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;padding:8px}
     .film .fhead{position:static;writing-mode:horizontal-tb;white-space:nowrap;align-self:center;padding:0 8px 0 0}
-    .th{width:110px;flex-shrink:0}
-    .th img{height:64px}
+    .th{flex:0 0 auto;width:120px}
+    .th img{height:74px}
     .hk{font-size:10.5px;padding:5px 10px}
     .drawer{width:96vw !important;padding:14px}
   }
