@@ -137,6 +137,21 @@
   .prog{font-size:13px;color:var(--neon);min-height:20px;margin-top:10px;font-family:"Space Grotesk"}
   input[type=range]{accent-color:var(--neon)}
   .x{margin-inline-start:auto}
+
+  /* ---- full-screen camera ---- */
+  .camfull{display:none;position:fixed;inset:0;z-index:50;background:#000}
+  .camfull.open{display:block}
+  #camVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
+  .cam-top{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:14px 16px;padding-top:max(14px,env(safe-area-inset-top));background:linear-gradient(rgba(0,0,0,.5),transparent);z-index:2}
+  .cam-count{color:#fff;font-size:13px;background:rgba(0,0,0,.45);border-radius:99px;padding:5px 12px}
+  .cam-btn{width:48px;height:48px;border-radius:50%;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.35);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;padding:0}
+  .cam-btn:hover{transform:none;border-color:rgba(255,255,255,.6)}
+  .cam-zoom{position:absolute;left:0;right:0;bottom:150px;display:flex;align-items:center;gap:12px;justify-content:center;padding:0 28px;z-index:2}
+  .cam-zoom input[type=range]{flex:1;max-width:280px;accent-color:#fff;height:26px}
+  .cam-bottom{position:absolute;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;gap:8px;padding-bottom:max(28px,env(safe-area-inset-bottom));z-index:2}
+  .shutter{width:78px;height:78px;border-radius:50%;background:#fff;border:5px solid rgba(255,255,255,.45);box-shadow:0 0 0 3px rgba(0,0,0,.3);padding:0}
+  .shutter:active{transform:scale(.92)}
+  .cam-bottom .prog{color:#fff;font-size:13px;text-shadow:0 1px 3px #000;min-height:18px;margin:0}
 </style>
 </head>
 <body>
@@ -175,24 +190,21 @@
 
   <div class="hk">גררו לצייר · לחצו מלבן לבחירה · פינה=שינוי גודל · <b>1-9</b> קטגוריה · <b>Del</b> מחיקה · <b>← →</b> מעבר · <b>רווח</b> הבא לא-מתויג</div>
 
-  <div class="scrim" id="camScrim">
-    <div class="drawer" style="width:min(680px,94vw)">
-      <div style="display:flex;align-items:center"><h3>📷 צילום מהמצלמה</h3><button class="x" id="closeCam">✕</button></div>
-      <p>צלמו את האובייקט מכמה זוויות, מרחקים ותאורות — יותר תמונות מגוונות = מודל טוב יותר.</p>
-      <div style="position:relative;background:#000;border:1px solid var(--line);border-radius:12px;overflow:hidden;line-height:0">
-        <video id="camVideo" style="width:100%;display:block" playsinline muted></video>
-        <button id="flipBtn" title="החלף מצלמה" style="position:absolute;top:8px;inset-inline-end:8px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:50%;width:42px;height:42px;font-size:18px;padding:0">🔄</button>
-      </div>
-      <div class="drow" style="justify-content:center;gap:8px">
-        <button id="zoomOut" style="font-size:18px;width:42px;padding:8px 0">➖</button>
-        <input type="range" id="zoom" min="1" max="5" step="0.1" value="1" style="accent-color:var(--neon);flex:1;max-width:220px">
-        <button id="zoomIn" style="font-size:18px;width:42px;padding:8px 0">➕</button>
-      </div>
-      <div class="drow" style="justify-content:center">
-        <button class="primary" id="snapBtn" style="font-size:16px;padding:12px 28px">📸 צלם</button>
-        <span id="snapCount" class="pill">0 תמונות</span>
-      </div>
+  <div class="camfull" id="camScrim">
+    <video id="camVideo" playsinline muted></video>
+    <div class="cam-top">
+      <button id="closeCam" class="cam-btn">✕</button>
+      <span id="snapCount" class="cam-count">0 תמונות</span>
+      <button id="flipBtn" class="cam-btn" title="החלף מצלמה">🔄</button>
+    </div>
+    <div class="cam-zoom">
+      <button id="zoomOut" class="cam-btn">➖</button>
+      <input type="range" id="zoom" min="1" max="5" step="0.1" value="1">
+      <button id="zoomIn" class="cam-btn">➕</button>
+    </div>
+    <div class="cam-bottom">
       <div class="prog" id="camProg"></div>
+      <button id="snapBtn" class="shutter" title="צלם"></button>
     </div>
   </div>
 
@@ -328,7 +340,7 @@ $('#camBtn').onclick = async () => {
 };
 function closeCam() { cam.stop(); camScrim.classList.remove('open'); if (snapN) openFolder(me); else if (currentFolder === null) renderFolders(); }
 $('#closeCam').onclick = closeCam;
-camScrim.onclick = e => { if (e.target === camScrim) closeCam(); };
+// (full-screen camera: no background-tap close — use the ✕ button)
 $('#snapBtn').onclick = () => {
   const shot = cam.snap();
   if (!shot) { $('#camProg').textContent = 'המצלמה עוד נטענת…'; return; }
