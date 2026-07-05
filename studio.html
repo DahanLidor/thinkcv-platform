@@ -98,15 +98,26 @@
     .nav{margin-inline-start:0;width:100%;justify-content:center}
     .cats{width:100%;justify-content:center}
     button{padding:9px 12px}
-    .work{grid-template-columns:1fr;grid-template-rows:1fr auto}
-    .filmwrap{border-inline-start:none;border-top:1px solid var(--line);flex:0 0 auto}
-    .filmwrap .film{flex:0 0 auto}
-    .filmbar{padding:6px 8px}
-    .film{flex-direction:row;flex-wrap:nowrap;height:120px;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;padding:8px}
-    .film .fhead{position:static;writing-mode:horizontal-tb;white-space:nowrap;align-self:center;padding:0 8px 0 0}
-    .th{flex:0 0 auto;width:120px}
-    .th img{height:74px}
-    .hk{font-size:10.5px;padding:5px 10px}
+
+    /* gallery mode (default in a folder): full vertical grid, no canvas */
+    .work{grid-template-columns:1fr;grid-template-rows:1fr}
+    .stage{display:none}
+    .filmwrap{border-inline-start:none;flex:1;min-height:0}
+    .filmwrap .film{flex:1;min-height:0}
+    .filmbar{position:sticky;top:0;z-index:5;background:var(--panel)}
+    .film{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:8px;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-y;padding:10px}
+    .th{width:auto}
+    .th img{width:100%;height:90px}
+    .hk{display:none}
+    body.view-work .nav{display:none}       /* hide annotate controls while browsing gallery */
+
+    /* annotating mode: full-screen canvas */
+    body.annotating .filmwrap{display:none}
+    body.annotating .stage{display:flex}
+    body.annotating .nav{display:flex}
+    body.annotating .hk{display:block}
+    body.annotating #folders{display:none}
+
     .drawer{width:96vw !important;padding:14px}
   }
 
@@ -229,12 +240,14 @@ function ensureAnnotator() {
   if (!annotator) annotator = new Annotator(store, '#stage', { onChange: refresh });
   return annotator;
 }
-function openFrame(id) { ensureAnnotator().open(id); }
+function openFrame(id) { ensureAnnotator().open(id); if (isMobile()) { document.body.classList.add('annotating'); updateBack(); } }
+const isMobile = () => window.matchMedia('(max-width:760px)').matches;
+function updateBack() { $('#backBtn').textContent = (isMobile() && document.body.classList.contains('annotating')) ? '◀ גלריה' : '◀ תיקיות'; }
 
 // ---- folders screen ----
 function showFolders() {
   currentFolder = null;
-  document.body.classList.remove('view-work');
+  document.body.classList.remove('view-work', 'annotating');
   document.body.classList.add('view-folders');
   renderFolders();
 }
@@ -242,13 +255,14 @@ function openFolder(owner) {
   currentFolder = owner;
   document.body.classList.remove('view-folders');
   document.body.classList.add('view-work');
+  document.body.classList.remove('annotating');
   window._filter = 'all';
-  // open first frame of this folder (or first untagged)
   const inFolder = owner === '__all__' ? store.frames : store.frames.filter(f => f.owner === owner);
   const first = inFolder.find(f => !f.done) || inFolder[0];
   annotator = null; $('#stage').innerHTML = '';
-  if (first) openFrame(first.id);
+  if (!isMobile() && first) openFrame(first.id); // desktop: open a frame alongside the strip
   refresh();
+  updateBack();
 }
 function renderFolders() {
   const wrap = $('#folders');
@@ -271,7 +285,10 @@ function renderFolders() {
   wrap.innerHTML = html;
   wrap.querySelectorAll('[data-folder]').forEach(el => el.onclick = () => openFolder(decodeURIComponent(el.dataset.folder)));
 }
-$('#backBtn').onclick = () => showFolders();
+$('#backBtn').onclick = () => {
+  if (isMobile() && document.body.classList.contains('annotating')) { document.body.classList.remove('annotating'); updateBack(); refresh(); }
+  else showFolders();
+};
 
 showFolders(); // start on the folders screen
 
