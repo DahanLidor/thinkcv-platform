@@ -62,6 +62,35 @@
   .th .bc{position:absolute;bottom:3px;inset-inline-end:3px;background:var(--ok);color:#04120b;font-size:10px;font-weight:700;border-radius:5px;padding:0 5px}
   .hk{padding:6px 16px;border-top:1px solid var(--line);background:var(--panel);font-size:11.5px;color:var(--muted);text-align:center}
 
+  /* ---- folders view ---- */
+  #folders{flex:1;overflow-y:auto;padding:18px}
+  .fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;max-width:900px;margin:0 auto}
+  .folder{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;cursor:pointer;transition:.14s;text-align:start}
+  .folder:hover{border-color:var(--neon);transform:translateY(-2px)}
+  .folder .cover{height:96px;background:#000 center/cover no-repeat;position:relative}
+  .folder .cover .allicon{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:34px;background:linear-gradient(135deg,rgba(34,211,238,.25),rgba(167,139,250,.25))}
+  .folder .meta{padding:10px 12px}
+  .folder .who{font-weight:700;font-size:14px;display:flex;align-items:center;gap:6px}
+  .folder .sub{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .folders-title{max-width:900px;margin:0 auto 14px;display:flex;align-items:center;gap:10px}
+  .folders-title h2{font-size:18px;margin:0}
+  .folders-title .tot{font-size:12px;color:var(--muted);margin-inline-start:auto}
+  /* work header (back + stats) */
+  .workhead{display:none;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
+  .workhead .back{font-weight:600}
+  .workhead .wtitle{font-weight:700;font-size:15px}
+  .stats{display:flex;gap:6px;margin-inline-start:auto;flex-wrap:wrap}
+  .stat{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:3px 9px;font-size:11.5px;color:var(--muted)}
+  .stat b{color:var(--ink);font-family:"Space Grotesk"}
+  .stat.hl b{color:var(--neon)}
+
+  /* view toggling */
+  body.view-folders #folders{display:block}
+  body.view-folders #work,body.view-folders .workhead,body.view-folders .hk,body.view-folders .nav,body.view-folders .cats{display:none}
+  body.view-work #folders{display:none}
+  body.view-work #work{display:grid}
+  body.view-work .workhead{display:flex}
+
   /* ---- mobile: stack filmstrip below, wrap toolbar, bigger touch targets ---- */
   @media (max-width:760px){
     .topbar{gap:8px;padding:8px 10px}
@@ -114,6 +143,14 @@
       <button id="clearTags" title="נקה את כל התיוגים מהתמונה">🧹 נקה</button>
       <button id="del" class="danger" title="מחק מלבן נבחר (Del)">🗑</button>
     </div>
+  </div>
+
+  <div id="folders"></div>
+
+  <div class="workhead" id="workhead">
+    <button class="back" id="backBtn">◀ תיקיות</button>
+    <span class="wtitle" id="wtitle"></span>
+    <div class="stats" id="stats"></div>
   </div>
 
   <div class="work" id="work">
@@ -180,7 +217,11 @@ if (!me) { me = (prompt('מה השם שלך? (יופיע על התמונות ש�
 store.owner = me;
 
 await store.load(); // load everyone's shared frames + categories
-store.onChange(refresh);
+store.onChange(onStoreChange);
+
+let currentFolder = null; // null = folders screen; '__all__' or owner name = work view
+
+function onStoreChange() { if (currentFolder === null) renderFolders(); else refresh(); }
 
 // ---- annotator ----
 function ensureAnnotator() {
@@ -189,8 +230,49 @@ function ensureAnnotator() {
 }
 function openFrame(id) { ensureAnnotator().open(id); }
 
-// open something on load
-if (store.frames.length) openFrame((store.frames.find(f => !f.done) || store.frames[0]).id);
+// ---- folders screen ----
+function showFolders() {
+  currentFolder = null;
+  document.body.classList.remove('view-work');
+  document.body.classList.add('view-folders');
+  renderFolders();
+}
+function openFolder(owner) {
+  currentFolder = owner;
+  document.body.classList.remove('view-folders');
+  document.body.classList.add('view-work');
+  window._filter = 'all';
+  // open first frame of this folder (or first untagged)
+  const inFolder = owner === '__all__' ? store.frames : store.frames.filter(f => f.owner === owner);
+  const first = inFolder.find(f => !f.done) || inFolder[0];
+  annotator = null; $('#stage').innerHTML = '';
+  if (first) openFrame(first.id);
+  refresh();
+}
+function renderFolders() {
+  const wrap = $('#folders');
+  const folders = store.folders();
+  const total = store.frames.length, labeled = store.frames.filter(f => f.done).length;
+  let html = `<div class="folders-title"><h2>📁 תיקיות</h2><span class="tot">${total} תמונות · ${labeled} מתויגות · ${folders.length} משתתפים</span></div><div class="fgrid">`;
+  // "all" folder
+  html += `<div class="folder" data-folder="__all__">
+      <div class="cover"><div class="allicon">🗂️</div></div>
+      <div class="meta"><div class="who">הכל</div><div class="sub">${total} תמונות · ${labeled} מתויגות</div></div>
+    </div>`;
+  for (const f of folders) {
+    html += `<div class="folder" data-folder="${encodeURIComponent(f.owner)}">
+        <div class="cover" style="background-image:url('${f.thumb || ''}')"></div>
+        <div class="meta"><div class="who">👤 ${f.owner}</div><div class="sub">${f.count} תמונות · ${f.labeled} מתויגות</div></div>
+      </div>`;
+  }
+  html += `</div>`;
+  if (!total) html = `<div class="folders-title"><h2>📁 עדיין אין תמונות</h2></div><p style="text-align:center;color:var(--muted)">לחצו “📷 מצלמה” או “📥 העלאה” למעלה כדי להתחיל — התמונות שלכם ייכנסו לתיקייה על שמכם.</p>`;
+  wrap.innerHTML = html;
+  wrap.querySelectorAll('[data-folder]').forEach(el => el.onclick = () => openFolder(decodeURIComponent(el.dataset.folder)));
+}
+$('#backBtn').onclick = () => showFolders();
+
+showFolders(); // start on the folders screen
 
 // ---- top bar controls ----
 $('#prev').onclick = () => annotator?.prev();
@@ -226,7 +308,7 @@ $('#camBtn').onclick = async () => {
   try { await cam.start($('#camVideo')); }
   catch (e) { $('#camProg').textContent = '⚠️ אין גישה למצלמה — צריך https/localhost והרשאה.'; console.error(e); }
 };
-function closeCam() { cam.stop(); camScrim.classList.remove('open'); if (snapN) openFrame(store.frames[store.frames.length - 1].id); }
+function closeCam() { cam.stop(); camScrim.classList.remove('open'); if (snapN) openFolder(me); else if (currentFolder === null) renderFolders(); }
 $('#closeCam').onclick = closeCam;
 camScrim.onclick = e => { if (e.target === camScrim) closeCam(); };
 $('#snapBtn').onclick = () => {
@@ -251,7 +333,7 @@ scrim.onclick = e => { if (e.target === scrim) scrim.classList.remove('open'); }
 $('#want').oninput = e => $('#wantLbl').textContent = e.target.value;
 $('#clearBtn').textContent = '🔄 רענן מהמאגר';
 $('#clearBtn').classList.remove('danger');
-$('#clearBtn').onclick = async () => { $('#clearBtn').textContent = 'טוען…'; await store.load(); refresh(); $('#clearBtn').textContent = '🔄 רענן מהמאגר'; };
+$('#clearBtn').onclick = async () => { $('#clearBtn').textContent = 'טוען…'; await store.load(); onStoreChange(); $('#clearBtn').textContent = '🔄 רענן מהמאגר'; };
 
 const drop = $('#drop'), fileInput = $('#file');
 drop.onclick = () => fileInput.click();
@@ -272,7 +354,7 @@ async function handle(fileList) {
   }
   const s = store.stats();
   prog.textContent = `✅ ${s.frames} פריימים · ${s.labeled} תויגו`;
-  if (store.frames.length > before) { scrim.classList.remove('open'); openFrame(store.frames[before].id); }
+  if (store.frames.length > before) { scrim.classList.remove('open'); openFolder(me); }
 }
 
 // ---- add-category (lives in the cats bar, re-rendered by refresh) ----
@@ -295,40 +377,49 @@ function refresh() {
   $('#addcat').onclick = addCategoryFromInput;
   $('#newcat').onkeydown = e => { if (e.key === 'Enter') addCategoryFromInput(); };
 
-  const p = annotator?.position() || { i: 0, n: store.frames.length };
-  $('#pos').textContent = store.frames.length ? `${p.i}/${p.n}` : '';
-  const has = store.frames.length > 0;
+  // scope to the open folder
+  const inFolder = (currentFolder && currentFolder !== '__all__') ? store.frames.filter(f => f.owner === currentFolder) : store.frames;
+  $('#wtitle').textContent = currentFolder === '__all__' ? '🗂️ הכל' : ('👤 ' + (currentFolder || ''));
+
+  const p = annotator?.position() || { i: 0, n: inFolder.length };
+  $('#pos').textContent = inFolder.length ? `${p.i}/${p.n}` : '';
+  const has = inFolder.length > 0;
   ['prev', 'next', 'nextU', 'bg', 'del', 'clearTags'].forEach(id => $('#' + id).disabled = !has);
 
   const stage = $('#stage'), film = $('#film');
   if (!has) {
-    film.innerHTML = '';
-    $('#filter').innerHTML = ''; $('#filmcount').textContent = '';
-    if (!annotator) stage.innerHTML = `<div class="empty"><b>אין עדיין פריימים</b><div>לחצו “📥 העלאה” או “📷 מצלמה” למעלה</div></div>`;
+    film.innerHTML = ''; $('#filter').innerHTML = ''; $('#filmcount').textContent = ''; $('#stats').innerHTML = '';
+    stage.innerHTML = `<div class="empty"><b>אין תמונות בתיקייה הזו</b><div>לחצו “📷 מצלמה” להוסיף, או חזרו לתיקיות</div></div>`;
+    annotator = null;
     return;
   }
 
   const cur = window._filter || 'all';
   $('#filter').innerHTML =
-    `<option value="all">הכל</option><option value="mine">רק שלי (${me})</option><option value="untagged">לא מתויג</option><option value="tagged">מתויג</option><option value="bg">רקע</option><option value="excluded">מוחרג מייצוא</option>`
-    + cats.map((c, i) => `<option value="cat:${i}">רק ${c.name}</option>`).join('')
-    + store.owners().filter(o => o !== me).map(o => `<option value="owner:${o}">מאת ${o}</option>`).join('');
+    `<option value="all">הכל</option><option value="untagged">לא מתויג</option><option value="tagged">מתויג</option><option value="bg">רקע</option><option value="excluded">מוחרג מייצוא</option>`
+    + cats.map((c, i) => `<option value="cat:${i}">רק ${c.name}</option>`).join('');
   $('#filter').value = cur;
   $('#filter').onchange = e => { window._filter = e.target.value; refresh(); };
 
   const match = f => {
-    if (cur === 'mine') return f.owner === me;
     if (cur === 'untagged') return !f.done;
     if (cur === 'tagged') return f.done && !f.background;
     if (cur === 'bg') return f.background;
     if (cur === 'excluded') return f.included === false;
     if (cur.startsWith('cat:')) { const n = +cur.slice(4); return f.boxes.some(b => b.cls === n); }
-    if (cur.startsWith('owner:')) return f.owner === cur.slice(6);
     return true;
   };
-  const shown = store.frames.filter(match);
-  const included = store.frames.filter(f => f.done && f.included !== false).length;
-  $('#filmcount').textContent = `${shown.length}/${store.frames.length} · ${included} לייצוא`;
+  const shown = inFolder.filter(match);
+
+  // live stats for the current view
+  const s = store.statsOf(shown);
+  $('#stats').innerHTML =
+    `<span class="stat">סה״כ <b>${s.total}</b></span>`
+    + `<span class="stat">מתויגות <b>${s.labeled}</b></span>`
+    + `<span class="stat">לא מתויגות <b>${s.untagged}</b></span>`
+    + (s.bg ? `<span class="stat">רקע <b>${s.bg}</b></span>` : '')
+    + `<span class="stat hl">לייצוא <b>${s.included}</b></span>`;
+  $('#filmcount').textContent = `${shown.length} מוצגות`;
 
   film.innerHTML = '';
   shown.forEach((f) => {
@@ -344,14 +435,12 @@ function refresh() {
     d.querySelector('img').onclick = () => openFrame(f.id);
     d.querySelector('.idx').onclick = () => openFrame(f.id);
     const delB = d.querySelector('.del-btn');
-    if (delB) delB.onclick = (e) => { e.stopPropagation(); if (confirm('למחוק את התמונה מהמאגר המשותף?')) { const wasOpen = annotator && annotator.frameId === f.id; store.removeFrame(f.id); if (wasOpen && store.frames[0]) openFrame(store.frames[0].id); } };
+    if (delB) delB.onclick = (e) => { e.stopPropagation(); if (confirm('למחוק את התמונה מהמאגר המשותף?')) { const wasOpen = annotator && annotator.frameId === f.id; store.removeFrame(f.id); const rest = (currentFolder && currentFolder !== '__all__') ? store.frames.filter(x => x.owner === currentFolder) : store.frames; if (wasOpen && rest[0]) openFrame(rest[0].id); } };
     d.querySelector('.inc').onclick = (e) => { e.stopPropagation(); store.toggleInclude(f.id); };
     film.appendChild(d);
   });
   const act = film.querySelector('.th.active'); if (act) act.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
-
-refresh();
 </script>
 </body>
 </html>

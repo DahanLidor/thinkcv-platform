@@ -80,6 +80,28 @@ export class CloudStore {
     return { frames: this.frames.length, labeled, boxes, categories: this.categories.length };
   }
 
+  // stats over an arbitrary subset (for live filter counts)
+  statsOf(list) {
+    const labeled = list.filter(f => f.done && !f.background).length;
+    const bg = list.filter(f => f.background).length;
+    const untagged = list.filter(f => !f.done).length;
+    const boxes = list.reduce((s, f) => s + f.boxes.length, 0);
+    const included = list.filter(f => f.done && f.included !== false).length;
+    return { total: list.length, labeled, bg, untagged, boxes, included };
+  }
+
+  // per-owner folders: [{owner, count, labeled, thumb}]
+  folders() {
+    const map = new Map();
+    for (const f of this.frames) {
+      if (!map.has(f.owner)) map.set(f.owner, { owner: f.owner, count: 0, labeled: 0, thumb: f.url });
+      const e = map.get(f.owner);
+      e.count++; if (f.done) e.labeled++;
+      if (!e.thumb) e.thumb = f.url;
+    }
+    return [...map.values()].sort((a, b) => b.count - a.count);
+  }
+
   // ---- cloud write (debounced) ----
   _push(id, patch) {
     this._dirty.set(id, { ...(this._dirty.get(id) || {}), ...patch });
